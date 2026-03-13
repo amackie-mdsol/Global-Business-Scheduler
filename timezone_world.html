@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Global Business Scheduler</title>
+    <style>
+        :root { --primary: #007aff; --success: #34c759; --danger: #ff3b30; --bg: #f5f5f7; }
+        body { font-family: -apple-system, sans-serif; background: var(--bg); display: flex; justify-content: center; padding: 20px; }
+        .card { background: white; padding: 30px; border-radius: 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.08); width: 100%; max-width: 650px; }
+        h2 { margin: 0 0 20px 0; font-size: 22px; color: #1d1d1f; text-align: center; }
+        
+        .zone-manager { background: #fdfdfd; padding: 15px; border-radius: 12px; border: 1px solid #eee; margin-bottom: 20px; }
+        .search-container { position: relative; display: flex; gap: 8px; }
+        #zoneSearch { flex-grow: 1; padding: 12px; border: 1px solid #d2d2d7; border-radius: 10px; font-size: 14px; outline-color: var(--primary); }
+        
+        .search-results { 
+            position: absolute; top: 100%; left: 0; right: 85px; 
+            background: white; border: 1px solid #ccc; border-radius: 10px; 
+            max-height: 250px; overflow-y: auto; z-index: 100; display: none;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        .search-item { padding: 10px; cursor: pointer; font-size: 14px; border-bottom: 1px solid #eee; }
+        .search-item:hover { background: #f0f7ff; }
+
+        .active-zones { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 15px; }
+        .zone-tag { background: #eee; padding: 6px 12px; border-radius: 15px; font-size: 13px; display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 500; border: 2px solid transparent; transition: 0.2s; }
+        .zone-tag.priority { background: var(--primary); color: white; border-color: var(--primary); }
+        .remove-zone { cursor: pointer; font-weight: bold; opacity: 0.6; margin-left: 5px; }
+
+        .setup-grid { display: grid; grid-template-columns: 1.5fr 1fr 1fr; gap: 10px; margin-bottom: 15px; }
+        label { font-size: 10px; text-transform: uppercase; color: #86868b; font-weight: 700; display: block; margin-bottom: 5px; }
+        input, select { width: 100%; padding: 10px; border: 1px solid #d2d2d7; border-radius: 8px; font-size: 14px; background: white; }
+        
+        .option-row { background: #fafafa; padding: 15px; border-radius: 12px; margin-bottom: 10px; border: 2px solid transparent; transition: 0.2s; cursor: pointer; position: relative; }
+        .option-row:hover { border-color: var(--primary); background: #f0f7ff; }
+        .option-num { font-size: 11px; font-weight: 800; color: var(--primary); margin-bottom: 8px; }
+        .time-display { font-size: 14px; margin-bottom: 4px; color: #333; }
+        .priority-bold { font-weight: 800; color: #000; text-decoration: underline; }
+        
+        .copied-badge { position: absolute; right: 15px; top: 15px; background: var(--success); color: white; font-size: 10px; padding: 4px 8px; border-radius: 20px; display: none; }
+        .export-btn { width: 100%; margin-top: 15px; padding: 16px; border: none; border-radius: 12px; background: var(--primary); color: white; font-size: 16px; font-weight: 600; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h2>🌎 Global Business Scheduler</h2>
+    
+    <div class="zone-manager">
+        <label>Search Hub (e.g. Hawaii, Switzerland, Singapore):</label>
+        <div class="search-container">
+            <input type="text" id="zoneSearch" placeholder="Type city or country..." oninput="handleSearch()">
+            <div id="searchResults" class="search-results"></div>
+            <button onclick="addZoneManual()" style="background: #333; color: white; border: none; padding: 0 15px; border-radius: 10px; cursor: pointer;">Add</button>
+        </div>
+        <div class="active-zones" id="activeZonesList"></div>
+    </div>
+
+    <div class="setup-grid">
+        <input type="date" id="dateInput" onchange="refresh()">
+        <select id="duration" onchange="refresh()">
+            <option value="15">15 Min</option>
+            <option value="30">30 Min</option>
+            <option value="45">45 Min</option>
+            <option value="60" selected>60 Min</option>
+            <option value="90">90 Min</option>
+        </select>
+        <select id="ampm" onchange="refresh()">
+            <option value="AM">AM</option>
+            <option value="PM" selected>PM</option>
+        </select>
+    </div>
+
+    <div class="setup-grid">
+        <select id="hourInput" onchange="refresh()">
+            <script>for(let i=1; i<=12; i++) document.write(`<option value="${i}">${i}</option>`);</script>
+        </select>
+        <select id="minuteInput" onchange="refresh()">
+            <option value="00">:00</option>
+            <option value="15">:15</option>
+            <option value="30">:30</option>
+            <option value="45">:45</option>
+        </select>
+    </div>
+
+    <div id="preview"></div>
+    <button class="export-btn" onclick="copyAll()">📋 Copy All Options (Outlook Ready)</button>
+</div>
+
+<script>
+    const timezoneDatabase = [
+        // US & Canada
+        { name: "Hawaii (Honolulu)", abbr: "HST", zone: "Pacific/Honolulu" },
+        { name: "Pacific Time (US/Canada)", abbr: "PT", zone: "America/Los_Angeles" },
+        { name: "Mountain Time (US/Canada)", abbr: "MT", zone: "America/Denver" },
+        { name: "Central Time (US/Canada)", abbr: "CT", zone: "America/Chicago" },
+        { name: "Eastern Time (US/Canada)", abbr: "ET", zone: "America/New_York" },
+        { name: "Toronto / Montreal", abbr: "ET", zone: "America/Toronto" },
+        // Europe & UK
+        { name: "London / United Kingdom", abbr: "GMT/BST", zone: "Europe/London" },
+        { name: "Ireland (Dublin)", abbr: "GMT/IST", zone: "Europe/Dublin" },
+        { name: "France (Paris)", abbr: "CET/CEST", zone: "Europe/Paris" },
+        { name: "Germany (Berlin/Frankfurt)", abbr: "CET/CEST", zone: "Europe/Berlin" },
+        { name: "Switzerland (Zurich/Bern/Geneva)", abbr: "CET/CEST", zone: "Europe/Zurich" },
+        { name: "Netherlands (Amsterdam)", abbr: "CET/CEST", zone: "Europe/Amsterdam" },
+        { name: "Spain (Madrid)", abbr: "CET/CEST", zone: "Europe/Madrid" },
+        // Middle East & Africa
+        { name: "UAE (Dubai / Abu Dhabi)", abbr: "GST", zone: "Asia/Dubai" },
+        { name: "Israel (Tel Aviv)", abbr: "IST/IDT", zone: "Asia/Jerusalem" },
+        { name: "South Africa (Johannesburg)", abbr: "SAST", zone: "Africa/Johannesburg" },
+        // Asia
+        { name: "India (Mumbai/Bangalore)", abbr: "IST", zone: "Asia/Kolkata" },
+        { name: "Singapore", abbr: "SGT", zone: "Asia/Singapore" },
+        { name: "Hong Kong", abbr: "HKT", zone: "Asia/Hong_Kong" },
+        { name: "China (Beijing/Shanghai)", abbr: "CST", zone: "Asia/Shanghai" },
+        { name: "Japan (Tokyo)", abbr: "JST", zone: "Asia/Tokyo" },
+        { name: "South Korea (Seoul)", abbr: "KST", zone: "Asia/Seoul" },
+        // Oceania
+        { name: "Australia (Sydney/Melbourne)", abbr: "AEST/AEDT", zone: "Australia/Sydney" },
+        { name: "New Zealand (Auckland)", abbr: "NZST/NZDT", zone: "Pacific/Auckland" },
+        // South America
+        { name: "Brazil (Sao Paulo/Rio)", abbr: "BRT", zone: "America/Sao_Paulo" },
+        { name: "Mexico City", abbr: "CST", zone: "America/Mexico_City" }
+    ];
+
+    let selectedZones = [
+        { id: "America/Los_Angeles", label: "PT", priority: false },
+        { id: "America/Chicago", label: "CT", priority: false },
+        { id: "America/New_York", label: "ET", priority: false }
+    ];
+
+    let tempSelected = null;
+
+    function handleSearch() {
+        const query = document.getElementById('zoneSearch').value.toLowerCase();
+        const resultsDiv = document.getElementById('searchResults');
+        if (query.length < 1) { resultsDiv.style.display = 'none'; return; }
+
+        const matches = timezoneDatabase.filter(z => z.name.toLowerCase().includes(query) || z.abbr.toLowerCase().includes(query));
+        
+        resultsDiv.innerHTML = "";
+        matches.forEach(m => {
+            const div = document.createElement('div');
+            div.className = 'search-item';
+            div.innerText = `${m.name} (${m.abbr})`;
+            div.onclick = () => {
+                tempSelected = { id: m.zone, label: m.abbr };
+                document.getElementById('zoneSearch').value = m.name;
+                resultsDiv.style.display = 'none';
+            };
+            resultsDiv.appendChild(div);
+        });
+        resultsDiv.style.display = matches.length ? 'block' : 'none';
+    }
+
+    function addZoneManual() {
+        if (!tempSelected) return alert("Please click a city from the list before adding!");
+        if (!selectedZones.find(z => z.id === tempSelected.id)) {
+            selectedZones.push({ ...tempSelected, priority: false });
+            renderZoneTags();
+            refresh();
+        }
+        document.getElementById('zoneSearch').value = "";
+        tempSelected = null;
+    }
+
+    function renderZoneTags() {
+        const container = document.getElementById('activeZonesList');
+        container.innerHTML = "";
+        selectedZones.forEach((z, index) => {
+            const tag = document.createElement('div');
+            tag.className = `zone-tag ${z.priority ? 'priority' : ''}`;
+            tag.innerHTML = `<span onclick="setPriority(${index})">${z.label}</span> 
+                             <span class="remove-zone" onclick="removeZone(${index})">×</span>`;
+            container.appendChild(tag);
+        });
+    }
+
+    function setPriority(index) {
+        selectedZones.forEach((z, i) => z.priority = (i === index && !z.priority));
+        renderZoneTags();
+        refresh();
+    }
+
+    function removeZone(index) {
+        selectedZones.splice(index, 1);
+        renderZoneTags();
+        refresh();
+    }
+
+    function getBaseDate() {
+        const dStr = document.getElementById('dateInput').value;
+        let h = parseInt(document.getElementById('hourInput').value);
+        const m = parseInt(document.getElementById('minuteInput').value);
+        const ampm = document.getElementById('ampm').value;
+        if (ampm === "PM" && h < 12) h += 12;
+        if (ampm === "AM" && h === 12) h = 0;
+        const d = new Date(dStr + 'T00:00:00');
+        d.setHours(h, m, 0);
+        return d;
+    }
+
+    function refresh() {
+        const base = getBaseDate();
+        const dur = parseInt(document.getElementById('duration').value);
+        const container = document.getElementById('preview');
+        container.innerHTML = "";
+        if (!base.getTime()) return;
+
+        for (let i = 0; i < 3; i++) {
+            const s = new Date(base.getTime() + (i * 60 * 60 * 1000));
+            const e = new Date(s.getTime() + (dur * 60000));
+            let html = `<div class="option-row" onclick="copySingle(this)"><div class="copied-badge">Copied!</div><div class="option-num">OPTION ${i+1}</div>`;
+            selectedZones.forEach(z => {
+                const f = (d) => d.toLocaleTimeString('en-US', { timeZone: z.id, hour: '2-digit', minute: '2-digit' });
+                html += `<div class="time-display ${z.priority ? 'priority-bold' : ''}">${z.label}: ${f(s)} – ${f(e)}</div>`;
+            });
+            container.innerHTML += html + `</div>`;
+        }
+    }
+
+    async function copyToClipboardRich(plainText, htmlText) {
+        const blobPlain = new Blob([plainText], { type: 'text/plain' });
+        const blobHtml = new Blob([htmlText], { type: 'text/html' });
+        const data = [new ClipboardItem({ 'text/plain': blobPlain, 'text/html': blobHtml })];
+        await navigator.clipboard.write(data);
+    }
+
+    function copySingle(element) {
+        const base = getBaseDate();
+        const dateStr = base.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+        const lines = element.querySelectorAll('.time-display');
+        let plainText = `Proposed Time: ${dateStr}\n`;
+        let htmlText = `<p style="font-family:sans-serif;">Proposed Time: ${dateStr}<br>`;
+        lines.forEach(line => {
+            let txt = line.innerText.trim();
+            if (line.classList.contains('priority-bold')) {
+                plainText += `${txt}\n`; htmlText += `<b>${txt}</b><br>`;
+            } else {
+                plainText += `${txt}\n`; htmlText += `${txt}<br>`;
+            }
+        });
+        copyToClipboardRich(plainText, htmlText + `</p>`);
+        const badge = element.querySelector('.copied-badge');
+        badge.style.display = 'block';
+        setTimeout(() => { badge.style.display = 'none'; }, 1000);
+    }
+
+    function copyAll() {
+        const base = getBaseDate();
+        const dateStr = base.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+        let plainText = `Proposed Meeting Options (${dateStr}):\n\n`;
+        let htmlText = `<div style="font-family:sans-serif;"><p>Proposed Meeting Options (${dateStr}):</p>`;
+        document.querySelectorAll('.option-row').forEach((row, i) => {
+            plainText += `Option ${i+1}:\n`;
+            htmlText += `<p><strong>Option ${i+1}:</strong><br>`;
+            row.querySelectorAll('.time-display').forEach(line => {
+                let txt = line.innerText.trim();
+                if (line.classList.contains('priority-bold')) {
+                    plainText += `${txt}\n`; htmlText += `<b>${txt}</b><br>`;
+                } else {
+                    plainText += `${txt}\n`; htmlText += `${txt}<br>`;
+                }
+            });
+            plainText += `\n`; htmlText += `</p>`;
+        });
+        copyToClipboardRich(plainText, htmlText + `</div>`);
+        alert("Full list copied for Outlook!");
+    }
+
+    document.getElementById('dateInput').valueAsDate = new Date();
+    renderZoneTags();
+    refresh();
+</script>
+
+</body>
+</html>
