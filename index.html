@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Global Meeting Scheduler</title>
+    <title>Global Business Scheduler</title>
     <style>
         :root { --primary: #007aff; --success: #34c759; --danger: #ff3b30; --bg: #f5f5f7; }
         body { font-family: -apple-system, sans-serif; background: var(--bg); display: flex; justify-content: center; padding: 20px; }
@@ -48,7 +48,7 @@
     <h2>🌎 Global Business Scheduler</h2>
     
     <div class="zone-manager">
-        <label>Search Hub (e.g. Hawaii, Switzerland, Singapore):</label>
+        <label>Search Hub (e.g. India, IST, Switzerland):</label>
         <div class="search-container">
             <input type="text" id="zoneSearch" placeholder="Type city or country..." oninput="handleSearch()">
             <div id="searchResults" class="search-results"></div>
@@ -89,7 +89,6 @@
 </div>
 
 <script>
-    // SMART ABBREVIATION HELPER
     function getAbbr(zone, date) {
         try {
             return new Intl.DateTimeFormat('en-US', { day: 'numeric', timeZone: zone, timeZoneName: 'short' })
@@ -101,32 +100,20 @@
     }
 
     const timezoneDatabase = [
-        { name: "Hawaii (Honolulu)", zone: "Pacific/Honolulu" },
-        { name: "Pacific Time (US/Canada)", zone: "America/Los_Angeles" },
-        { name: "Mountain Time (US/Canada)", zone: "America/Denver" },
-        { name: "Central Time (US/Canada)", zone: "America/Chicago" },
-        { name: "Eastern Time (US/Canada)", zone: "America/New_York" },
-        { name: "Toronto / Montreal", zone: "America/Toronto" },
-        { name: "London / United Kingdom", zone: "Europe/London" },
-        { name: "Ireland (Dublin)", zone: "Europe/Dublin" },
-        { name: "France (Paris)", zone: "Europe/Paris" },
-        { name: "Germany (Berlin/Frankfurt)", zone: "Europe/Berlin" },
-        { name: "Switzerland (Zurich/Bern/Geneva)", zone: "Europe/Zurich" },
-        { name: "Netherlands (Amsterdam)", zone: "Europe/Amsterdam" },
-        { name: "Spain (Madrid)", zone: "Europe/Madrid" },
-        { name: "UAE (Dubai / Abu Dhabi)", zone: "Asia/Dubai" },
-        { name: "Israel (Tel Aviv)", zone: "Asia/Jerusalem" },
-        { name: "South Africa (Johannesburg)", zone: "Africa/Johannesburg" },
-        { name: "India (Mumbai/Bangalore)", zone: "Asia/Kolkata" },
-        { name: "Singapore", zone: "Asia/Singapore" },
-        { name: "Hong Kong", zone: "Asia/Hong_Kong" },
-        { name: "China (Beijing/Shanghai)", zone: "Asia/Shanghai" },
-        { name: "Japan (Tokyo)", zone: "Asia/Tokyo" },
-        { name: "South Korea (Seoul)", zone: "Asia/Seoul" },
-        { name: "Australia (Sydney/Melbourne)", zone: "Australia/Sydney" },
-        { name: "New Zealand (Auckland)", zone: "Pacific/Auckland" },
-        { name: "Brazil (Sao Paulo/Rio)", zone: "America/Sao_Paulo" },
-        { name: "Mexico City", zone: "America/Mexico_City" }
+        { name: "Hawaii (Honolulu)", abbr: "HST", zone: "Pacific/Honolulu" },
+        { name: "Pacific Time (US/Canada)", abbr: "PT", zone: "America/Los_Angeles" },
+        { name: "Mountain Time (US/Canada)", abbr: "MT", zone: "America/Denver" },
+        { name: "Central Time (US/Canada)", abbr: "CT", zone: "America/Chicago" },
+        { name: "Eastern Time (US/Canada)", abbr: "ET", zone: "America/New_York" },
+        { name: "India (Mumbai/Bangalore)", abbr: "IST", zone: "Asia/Kolkata" },
+        { name: "Switzerland (Zurich/Bern)", abbr: "CET", zone: "Europe/Zurich" },
+        { name: "London / United Kingdom", abbr: "GMT", zone: "Europe/London" },
+        { name: "France (Paris)", abbr: "CET", zone: "Europe/Paris" },
+        { name: "Germany (Berlin)", abbr: "CET", zone: "Europe/Berlin" },
+        { name: "Singapore", abbr: "SGT", zone: "Asia/Singapore" },
+        { name: "Japan (Tokyo)", abbr: "JST", zone: "Asia/Tokyo" },
+        { name: "Australia (Sydney)", abbr: "AEST", zone: "Australia/Sydney" },
+        { name: "UAE (Dubai)", abbr: "GST", zone: "Asia/Dubai" }
     ];
 
     let selectedZones = [
@@ -141,12 +128,17 @@
         const query = document.getElementById('zoneSearch').value.toLowerCase();
         const resultsDiv = document.getElementById('searchResults');
         if (query.length < 1) { resultsDiv.style.display = 'none'; return; }
-        const matches = timezoneDatabase.filter(z => z.name.toLowerCase().includes(query));
+        
+        const matches = timezoneDatabase.filter(z => 
+            z.name.toLowerCase().includes(query) || 
+            z.abbr.toLowerCase().includes(query)
+        );
+        
         resultsDiv.innerHTML = "";
         matches.forEach(m => {
             const div = document.createElement('div');
             div.className = 'search-item';
-            div.innerText = m.name;
+            div.innerText = `${m.name} (${m.abbr})`;
             div.onclick = () => {
                 tempSelected = { id: m.zone, label: getAbbr(m.zone, new Date()) };
                 document.getElementById('zoneSearch').value = m.name;
